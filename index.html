@@ -576,7 +576,7 @@ function viewTimer() {
         </div>
         ${pomo ? `<div class="modes">${['focus','short','long'].map(m => `<button class="mode ${t.mode === m ? 'on' : ''}" data-act="mode" data-mode="${m}">${MODE[m]}</button>`).join('')}</div>` : ''}
         <div class="ring-wrap">
-          <svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><circle class="ring-bg" cx="110" cy="110" r="100"/><circle class="ring-fg ${over ? 'over' : ''}" id="ringFg" cx="110" cy="110" r="100" stroke-dasharray="${C}" stroke-dashoffset="${C}"/></svg>
+          <svg class="ring" viewBox="0 0 220 220" aria-hidden="true"><circle class="ring-bg" cx="110" cy="110" r="100"/><circle class="ring-fg ${over ? 'over' : ''}" id="ringFg" cx="110" cy="110" r="100" stroke-dasharray="${C}" stroke-dashoffset="${ringOffset(s)}"/></svg>
           <div class="ring-center">
             <div class="phase">${over ? `목표 ${s.focus}분 달성 · 이어서 집중 중` : pomo ? MODE[t.mode] : (running ? '측정 중' : t.status === 'paused' ? '일시정지' : '카운트업')}</div>
             <div class="time ${over ? 'over' : ''}" id="mainTime" role="timer" aria-live="off"></div>
@@ -700,6 +700,14 @@ function viewSettings() {
 }
 
 /* 매 프레임 갱신되는 숫자들 */
+// 원형 표시: 뽀모도로는 꽉 찬 원에서 남은 시간만큼 줄어듦, 카운트업은 1시간마다 한 바퀴 채워짐
+function ringOffset(s, now = Date.now()) {
+  let p;
+  if (s.type === 'countup') p = (elapsed(s, now) % 3600000) / 3600000;
+  else if (isOver(s)) p = 1;
+  else p = remaining(s, now) / phaseMs(s);
+  return C * (1 - Math.min(1, Math.max(0, p)));
+}
 function clockText(s, now = Date.now()) {
   if (s.type === 'countup') return fmtClock(elapsed(s, now), true);
   if (isOver(s)) return '+' + fmtClock(overMs(s, now), true);
@@ -712,12 +720,9 @@ function updateLive(now = Date.now()) {
   });
   const s = active();
   const mt = $('#mainTime'), ring = $('#ringFg');
-  let p;
   if (mt) mt.textContent = clockText(s, now);
-  if (s.type === 'countup') p = (elapsed(s, now) % 3600000) / 3600000;
-  else if (isOver(s)) { p = 1; const n = $('#overNote'); if (n) n.textContent = `지금까지 총 ${fmtMin(s.focus + Math.floor(overMs(s, now) / 60000))} 집중`; }
-  else p = 1 - remaining(s, now) / phaseMs(s);
-  if (ring) ring.style.strokeDashoffset = C * (1 - Math.min(1, Math.max(0, p)));
+  if (isOver(s)) { const n = $('#overNote'); if (n) n.textContent = `지금까지 총 ${fmtMin(s.focus + Math.floor(overMs(s, now) / 60000))} 집중`; }
+  if (ring) ring.style.strokeDashoffset = ringOffset(s, now);
   const run = isActive(s) ? s : state.sessions.find(isActive);
   document.title = run ? `${clockText(run, now)} · ${run.type === 'countup' ? '카운트업' : isOver(run) ? '집중 이어가는 중' : MODE[run.timer.mode]} — ${run.name}` : '집중 일지';
 }
